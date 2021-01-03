@@ -1,0 +1,335 @@
+%
+% This example is based on:
+% http://www.maths.tcd.ie/~dwilkins/LaTeXPrimer/Theorems.html
+%
+\documentclass[a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amsthm,amssymb}
+
+% Creating cases lists up to a depth of 3
+\usepackage{enumitem}
+\newlist{case}{enumerate}{3}
+\setlist[case,1]{label=Case \arabic*., align=left, leftmargin=*, labelindent=0cm}
+\setlist[case,2]{label*=\roman*., align=left, leftmargin=0cm}
+\setlist[case,3]{label*=\alph*., align=left, leftmargin=0cm}
+
+
+
+
+\renewcommand\qedsymbol{$\blacksquare$}
+
+\title{Egalitarian Paxos: Proof of correctness}
+\author{Alexis Le Glaunec}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{property}{Property}
+\newtheorem{invariant}{Invariant}
+
+
+
+      
+\begin{document}
+\maketitle
+
+
+
+
+\begin{definition}[Pre-Accept]
+\begin{align*}
+preaccept(D,c,Q,b) \triangleq \forall p \in Q, \lozenge( & deps(c)=D \\
+                                                         & \wedge vbal=b=0 \\
+                                                         & \wedge status(c) = "preaccepted")
+\end{align*}
+\end{definition}
+
+\begin{definition}[Accept]
+\begin{align*}
+    accept(D,c,Q,b) \triangleq \forall p \in Q, \lozenge( & deps(c)=D \\
+                                                             &\wedge vbal=b \\
+                                                             &\wedge status(c) = "accepted")
+\end{align*}
+\end{definition}
+
+\begin{definition}[Vote]
+\begin{align*}
+    vote(D,c,p,b) \triangleq  \lozenge( & p.deps(c)=D \\
+                                                             &\wedge p.vbal=b > 0 \\
+                                                             &\wedge p.status(c) = "accepted")
+\end{align*}
+\end{definition}
+
+
+\begin{definition}[Committable]
+\begin{align*}
+    committable(D,c,Q,b) \triangleq  preaccept(D,c,Q,b) \vee accept(D,c,Q,b)
+\end{align*}
+\end{definition}
+
+\begin{definition}[Committed]
+\begin{align*}
+    committed(D,c) \triangleq  \exists p \in Replicas, \lozenge(& deps(c) = D \\
+                                                                &\wedge status(c) = "committed") 
+\end{align*}
+
+\end{definition}
+
+\begin{definition}[Executed]
+\begin{align*}
+    executed(D,c) \triangleq  \exists p \in Replicas, \lozenge(& deps(c) = D \\
+                                                                &\wedge status(c) = "executed") 
+\end{align*}
+
+\end{definition}
+
+
+
+
+
+\begin{property}
+$committed(D,c) \implies \exists \; b,Q  \; committable(D,c,Q,b)$
+\end{property}
+
+\begin{proof}
+Let's suppose $committed(D,c)$. We consider $cleader \in Replicas$, the set of replicas, the leader of the command first to have $deps(c) = D \wedge status(c) = "committed"$. Therefore $committed(D,c) \implies \lozenge Phase1Fast(cleader,i,Q) \vee \lozenge Phase2Finalize(cleader,i,Q)$.
+
+\begin{case}
+    \item $\lozenge Phase1Fast(cleader,i,Q)$\\
+    $Phase1Fast(cleader,i,Q) \implies \lozenge StartPhase1(c,cleader,Q,i,0,oldMsg)$ and a $StartPhase1$ postcondition is $vbal=b$. Thus we have $vbal=b=0$. Moreover one of $Phase1Fast$ preconditions is $\forall p \in Q, (p.deps(c) = cleader.deps(c))$. As $\lozenge Phase1Fast \implies \forall p \in q, p.status(c) = "preaccepted"$, we conclude that $preaccept(D,c,Q,b)$ and therefore $committable(D,c,Q,b)$.
+    
+    \item $\lozenge Phase2Finalize(cleader,i,Q)$\\
+    This is a similar case, replacing $p.status="preaccepted"$ with $p.status="accepted"$ and $\lozenge Phase2Finalize \implies \lozenge Phase1Slow(cleader,i,Q)$. Therefore as $vbal=b$ is a postcondition of $Phase1Slow$, we conclude that $accept(D,c,Q,b)$ and therefore $committable(D,c,Q,b)$.
+\end{case}
+\end{proof}
+
+\begin{property}
+\begin{equation*}
+    vote(D,c,p,b) \implies \forall b'<b, \; (committable(D',c,Q',b') \implies D=D')
+\end{equation*}
+\end{property}
+
+\begin{proof}
+By induction on $b$, the ballot number. \\
+    \underline{Induction hypothesis:}\\
+$vote(D,c,p,b) \implies \forall b'<b, \; (committable(D',c,Q',b') \implies D=D')
+$\\
+
+By definition, the base case is true. Let's consider a ballot $b>0$ as we suppose $vote(D,c,p,b)$.  At a recovery step, only $\lozenge PrepareFinalize$ leads to $vote$. Let's suppose $\exists b_M<b$ the highest ballot with $\; committable(D_M,c,Q_M,b_M)$ and by induction $\forall b'<b_M, \; committable(D',c,Q',b') \implies D=D'$. Replica $p$ is part of quorum $Q$. Let's define $R=Q \cap Q_M$ and by definition $R \neq \emptyset$ hence $\exists r \in R$. If $vote(D_r,c,r,b) < vote(D'_r,c,r,b_M)$, it is in contradiction with the ballot order $b < b_M$ that is a precondition of $PrepareFinalize$ therefore impossible. Thus $vote(D_r,c,r,b) > vote(D'_r,c,r,b_M)$, and by definition of $b_M$, $\nexists q, vote(D_q,c,q, b_q)$. Therefore we take $D=D_M$ as $b_M$ is the highest ballot lower than $b$ possibly $committable$, and the induction hypothesis is verified.
+\end{proof}
+
+
+\begin{property}
+$committable(D,c,Q,b) \wedge committable(D',c,Q',b') \implies D=D'$
+\end{property}
+\begin{proof}
+We suppose $committable(D,c,Q,b) \wedge committable(D',c,Q',b')$.
+\begin{case}
+    \item $b = b'$ 
+    \begin{case}
+        \item $b=0$\\
+        At ballot $b=0$, $\exists! cleader, \lozenge Propose(c, cleader)$ as $Propose$ precondition $c \notin proposed$ is completed with $Propose$ postcondition $proposed' = proposed \cup \{c\}$. Thus $cleader$ proposes only once a set of dependences $D$ at a quorum $Q$. Therefore, there is only $committable(D,c,Q,0)$ with $D$ and $Q$ uniques.
+        \item $b>0$ \\
+        There can be several leaders recovering a command at the same time. However, as ballots are totally ordered by lexicographical order on $(ballot, replica)$ and that EPaxos is a majority-based protocol, only one $cleader$ has committable(D,c,Q,b). And as for the previous case,  $SendPrepare$ preconditions guarantee that $cleader$ will propose a unique set of dependencies $D$ to a quorum $Q$.
+    \end{case}
+    \item $b > b'$ \\
+    By induction on $b$, the ballot number. \\
+    \underline{Induction hypothesis:}
+    \[committable(D,c,Q,b) \implies (\forall b' < b, committable(D',c,Q',b') \implies D' = D)\]\\
+    By definition of the induction hypothesis, $b>0$ and the base case is true. In the recovery step, $committable$ is accessible only through $\lozenge PrepareFinalize$. We define $replies$ the set of replies from a quorum $Q$ to the new leader $cleader$, and consider the different cases regarding $replies$ content.
+    
+    \begin{case}
+        \item  $\exists \; com \in replies \; with \; com.status \in \{"committed", "executed"\}$
+        As $executed \implies committed$, we conclude by property 1 that $committable(D_M,c,Q_M,b_M)$ happened and take $D = D_M$. Therefore by induction comes the result.
+        
+        \item $\exists \; acc \in replies \; with \; acc.status = "accepted"$ \\
+        Since we have $acc \in replies$, it means that $\exists p \in Q,  \exists  b_M < b,  vote(D_M,c,p,b_M).$ \\
+        By property 2, we have $\forall b''<b_M, \; (committable(D'',c,Q'',b'') \implies D''=D_M).$ Hence by induction, as we choose $D=D_M=D''$, it verifies the induction hypothesis.
+        
+        % TODO: following case to check : looks suspicious to me
+        \item $\forall msg \in replies, msg.status \notin \{"accepted", "committed", "executed"\}$ \\
+        Then if $committable(D',c,Q',b')$, necessarily b'=0 by definition of \textit{pre-accept}. Let's consider $R = Q \cap Q'$. By definition of a quorum, $R \neq \emptyset$.
+        
+        \begin{case}
+            \item $\forall p,q \in R, \; p.deps(c) = q.deps(c)=D'$ \\
+            Therefore we choose $D=D'$.        
+            
+            \item $\exists p,q \in R, \; p.deps(c) \neq q.deps(c)$ \\
+            It is in contradiction with $committable(D',c,Q',b')$. Hence, such $b'$ doest not exist and there is no constraint on $D$. \\
+        \end{case}
+    \end{case}
+
+\end{case}
+Therefore the induction hypothesis is verified in any case, hence comes the result.
+\end{proof}
+
+
+\begin{invariant}
+\begin{equation*}
+    committed(D,c) \wedge committed(D',c) \implies D=D'
+\end{equation*}
+\end{invariant}
+
+\begin{proof}
+Direct by combining properties 1 and 3.
+\end{proof}
+
+\begin{definition}[Sent]
+\begin{align*}
+     \exists m \in Sent \Longleftrightarrow  \lozenge(\exists m \in sentMsg)
+\end{align*}
+\end{definition}
+
+
+
+\begin{definition}[Seen]
+\begin{align*}
+    seen(D,c,b,p) \triangleq \lozenge(& \exists m \in Sent, \; m.type \in \{"preaccept", "preaccept-reply", "try-preaccept-reply"\} \\
+                                    &\wedge m.src = p \\
+                                    &\wedge m.cmd = c \\
+                                    &\wedge (m.type \neq try-preaccept-reply \implies m.deps = D) \\
+                                    &\wedge (m.type = preaccept \implies b = 0 \vee m.ballot = b))
+\end{align*}
+\end{definition}
+
+\begin{property}
+\begin{equation*}
+    vote(D,c,p,b) \implies \exists Q', \; \forall p \in Q', \; seen(D_p,c,b,p) \wedge (D = \bigcup_{p \in Q'}{D_p})
+\end{equation*}
+\end{property}
+
+\begin{proof}
+\end{proof}
+
+
+
+\begin{property}
+    \begin{align*}
+    commitable(D,c,Q,b) \implies \exists Q', \; \forall p \in Q', \; seen(D_p,c,p,b) \wedge (D = \bigcup_{p \in Q'}{D_p})
+    \end{align*}
+\end{property}
+
+\begin{proof}
+By induction on b, the ballot number.
+
+\begin{flushleft}
+\underline{Induction hypothesis:}\\
+\end{flushleft}
+$ commitable(D,c,Q,b) \implies \exists Q', \; \forall p \in Q', \; seen(D_p,c,p,b) \wedge (D = \bigcup_{p \in Q'}{D_p})$\\
+
+
+\begin{flushleft}
+\underline{Base case:} $b = 0$
+\end{flushleft}
+
+\begin{case}
+    \item $preaccept(D,c,Q,0)$ \\
+    Let's consider the initial leader of the command $cleader$ and \\ $\lozenge StartPhase1(c,cleader,Q,i,b,\{\})$. The message is different depending on the nature of $p \in Q$:
+    \begin{case}
+        \item $p=cleader$\\
+        Therefore $p$ sends a message $m$ with $m.src=p,m.cmd=c,m.deps= \{rec.inst : rec \in cmdLog[cleader]\}$ and $m.type = preaccept$.
+        \item $p \neq cleader$\\
+        Therefore $p$ replies to $m$ with $m_r$ having $m_r.src=p,m_r.cmd=c,m_r.deps= m.deps \cup ({t.inst : t \in cmdLog[p]} \backslash \{m.inst\})$ and $m_r.type = preaccept-reply$.
+    \end{case}
+    Hence, $\exists Q, \; \forall p \in Q, \; seen(D_p,c,p,b) \wedge (D = \bigcup_{p \in Q}{D_p})$
+    
+    \item $accept(D,c,Q,0)$ \\
+    Therefore $\lozenge Phase1Slow(cleader,i,Q)$ and as a consequence, like for the previous case, $cleader$ sent a message in $\lozenge StartPhase1$ and $\forall p \in Q, p \neq cleader$, $p$ replied in $\lozenge Phase1Reply$. Thus $cleader$ sends a message $m$ with $m.deps = \cup \{m_r.deps : m_r \in replies\}$ where replies is the union of all $m_r$ from the previous case. Hence, by going through the two calls developed in the case above, $seen$ condtion is checked. And as $cleader$ proposes $D=m.deps$, we have $D = \bigcup_{p \in Q'}{D_p}$.
+\end{case}
+    \begin{flushleft}
+    \underline{Induction step:} $b > 0$
+    \end{flushleft}
+    For \textit{c} to be \textit{committable}, there must be $\lozenge PrepareFinalize(replica, i, Q)$.\\
+    
+    \begin{case}
+        \item $\exists \; com \in replies \; with \; com.status \in \{"committed", "executed"\}$ \\
+        Therefore, $\exists b' < b , committable(D',c,Q',b')$. Taking $D=D'$, by induction, we have that $\exists Q', \; \forall p \in Q', \; seen(D_p,c,p,b) \wedge (D = \bigcup_{p \in Q'}{D_p})$.\\
+
+        \item $\exists \; acc \in replies \; with \; acc.status = "accepted" $ \\
+        By definition, we have $vote(D,c,p,b)$. Hence by property 4, $\exists Q', \; \forall p \in Q', \; seen(D_p,c,p,b) \wedge (D = \bigcup_{p \in Q'}{D_p})$.
+
+        \item $\forall msg \in replies, msg.status \notin \{"accepted", "committed", "executed"\}$ \\
+        Let's define $preaccepts \triangleq \{msg \in replies : msg.status = "preaccepted" \}$.
+        
+        \begin{case}
+            \item $(|preaccepts| \geq |Q|-1)  \wedge (\forall m_1,m_2 \in preaccepts, m_1.deps = m_2.deps) \wedge (\forall m \in preaccepts : m.src \neq i[1])$\\
+            Hence we have $|Q|-1$ replicas $p$ with $seen(D,c,b',p)$ without the leader, and $b'=0$ by definition of \textit{pre-accept}. As the initial leader picked the set of dependencies, it also had $seen(D,c,b',cleader)$. Therefore $\forall p \in Q, seen(D,c,b',p)$ and the induction hypothesis is true.
+            
+            \item $(|Q|-1 > |preaccepts| \geq |Q|/2  )  \wedge (\forall m_1,m_2 \in preaccepts, m_1.deps = m_2.deps) \wedge (\forall m \in preaccepts : m.src \neq i[1])$ \\
+             $committable(D,c,Q,b) \implies \lozenge FinalizeTryPreAccept(cleader,i,Q)$. Let's define $tprs \triangleq \{msg \in sentMsg : msg.type = "try-preaccept-reply" \wedge msg.dst = cleader \wedge msg.inst = i \wedge msg.ballot = rec.ballot\}$. To be committable, we have either: 
+            \begin{itemize}
+                \item $\forall tpr \in tprs : tpr.status = "OK"$ which means that $\forall p \in Q, seen(D,c,p,b)$ and $D$ is chosen to be committable.
+                \item $\exists tpr \in tprs : tpr.status \in \{"accepted", "committed", "executed"\}$, hence we initiate $StartPhase1$. We deal with this case in the following case.
+            \end{itemize}
+
+            \item Remaining cases \\
+            In these cases, $committable \implies StartPhase1$. It can be reduced to the base case with $Phase1Slow$ (we can only call \textit{StartPhase1} on a slow quorum at a ballot $b > 0$).
+            As the base case verifies the induction hypothesis, this case verifies it too.
+
+
+        \end{case}
+
+    \end{case}
+Therefore the induction hypothesis is verified in any case, hence comes the result.
+
+\end{proof}
+
+\begin{property}
+\begin{equation*}
+    \square(seen(\_,c,p,\_)) \implies \square(c \in cmdLog[p])
+\end{equation*}
+\end{property}
+
+\begin{proof}
+\end{proof}
+
+
+\begin{property}
+\begin{equation*}
+    \square(seen(D,c,p,b)) \implies \square(p.deps[c] \subseteq D)
+\end{equation*}
+\end{property}
+
+\begin{proof}
+\end{proof}
+
+\begin{property}
+\begin{equation*}
+    seen(D,c,p,b) \wedge seen(D',c',p,b') \implies c \in D' \vee c' \in D
+\end{equation*}
+\end{property}
+
+\begin{proof}
+Let's suppose, without loss of generality, $seen(D_p,c,p,b) < seen(D'_p,c',p,b')$.
+By property 6, let's consider the first time when $\square(c \in cmdLog[p])$. Then let's consider the first time when $\square seen(D'_p,c',p,b')$. It can happen in 3 different cases according to the type of message:
+
+\begin{case}
+    \item $m.type = "preaccept"$ \\
+    It means that $p$ is the leader of the command. As $c \in cmdLog[p]$, necessarily $c \in D'_p$ because $p$ sends a message $m$ with $m.deps = \{rec.inst : rec \in cmdLog[p]\}$.
+
+    \item $m.type = "preaccept-reply"$ \\
+    It means that $p$ is a follower. As $c \in cmdLog[p]$, necessarily $c \in D'_p$ because $p$ receives a message $msg$ and reply with a message $m$ with $m.deps = msg.deps \cup \{t.inst : t \in cmdLog[p]\}\backslash \{msg.inst\}$.
+
+    \item $m.type = "try-preaccept-reply"$ \\
+\end{case}
+
+\end{proof}
+
+\begin{invariant}
+    \begin{align*}
+    committed(D,c) \wedge committed(D',c') \implies c \in D' \; or \; c' \in D
+    \end{align*}
+\end{invariant}
+
+\begin{proof}
+Direct by combining properties 1, 5 and 8.
+\end{proof}
+
+
+
+\end{document}
