@@ -101,7 +101,7 @@ Let's suppose $committed(D,c)$. We consider $cleader \in Replicas$, the set of r
 
 \begin{case}
     \item $\lozenge Phase1Fast(cleader,i,Q)$\\
-    $Phase1Fast(cleader,i,Q) \implies \lozenge StartPhase1(c,cleader,Q,i,0,oldMsg)$ and a $StartPhase1$ postcondition is $vbal=b$. Thus we have $vbal=b=0$. Moreover one of $Phase1Fast$ preconditions is $\forall p \in Q, (p.deps(c) = cleader.deps(c))$. As $\lozenge Phase1Fast \implies \forall p \in q, p.status(c) = "preaccepted"$, we conclude that $preaccept(D,c,Q,b)$ and therefore $committable(D,c,Q,b)$.
+    $\lozenge Phase1Fast(cleader,i,Q) \implies \lozenge StartPhase1(c,cleader,Q,i,0,oldMsg)$ and a $StartPhase1$ postcondition is $vbal=b$. Thus we have $vbal=b=0$. Moreover one of $Phase1Fast$ preconditions is $\forall p \in Q, (p.deps(c) = cleader.deps(c))$. As $\lozenge Phase1Fast \implies \forall p \in q, p.status(c) = "preaccepted"$, we conclude that $preaccept(D,c,Q,b)$ and therefore $committable(D,c,Q,b)$.
     
     \item $\lozenge Phase2Finalize(cleader,i,Q)$\\
     This is a similar case, replacing $p.status="preaccepted"$ with $p.status="accepted"$ and $\lozenge Phase2Finalize \implies \lozenge Phase1Slow(cleader,i,Q)$. Therefore as $vbal=b$ is a postcondition of $Phase1Slow$, we conclude that $accept(D,c,Q,b)$ and therefore $committable(D,c,Q,b)$.
@@ -268,7 +268,7 @@ $ commitable(D,c,Q,b) \implies \exists Q', \; \forall p \in Q', \; seen(D_p,c,p,
             \end{itemize}
 
             \item Remaining cases \\
-            In these cases, $committable \implies StartPhase1$. It can be reduced to the base case with $Phase1Slow$ (we can only call \textit{StartPhase1} on a slow quorum at a ballot $b > 0$).
+            In these cases, $committable \implies \lozenge StartPhase1$. It can be reduced to the base case with $Phase1Slow$ (we can only call \textit{StartPhase1} on a slow quorum at a ballot $b > 0$).
             As the base case verifies the induction hypothesis, this case verifies it too.
 
 
@@ -286,6 +286,7 @@ Therefore the induction hypothesis is verified in any case, hence comes the resu
 \end{property}
 
 \begin{proof}
+For the 3 sorts of message type, the message is sent after modifying $cmdLog[p]$ accordingly to the message content, hence the result.
 \end{proof}
 
 
@@ -305,17 +306,18 @@ Therefore the induction hypothesis is verified in any case, hence comes the resu
 \end{property}
 
 \begin{proof}
-Let's suppose, without loss of generality, $seen(D_p,c,p,b) < seen(D'_p,c',p,b')$.
-By property 6, let's consider the first time when $\square(c \in cmdLog[p])$. Then let's consider the first time when $\square seen(D'_p,c',p,b')$. It can happen in 3 different cases according to the type of message:
+Let's suppose, without loss of generality, $seen(D,c,p,b) < seen(D',c',p,b')$.
+By property 6, let's consider a time when $\square(c \in cmdLog[p])$. Then let's consider the first time when $\square seen(D',c',p,b')$. It can happen in 3 different cases according to the type of message:
 
 \begin{case}
     \item $m.type = "preaccept"$ \\
-    It means that $p$ is the leader of the command. As $c \in cmdLog[p]$, necessarily $c \in D'_p$ because $p$ sends a message $m$ with $m.deps = \{rec.inst : rec \in cmdLog[p]\}$.
+    It means that $p$ is the leader of the command. As $c \in cmdLog[p]$, necessarily $c \in D'$ because $p$ sends a message $m$ with $m.deps = \{rec.inst : rec \in cmdLog[p]\}$.  
 
     \item $m.type = "preaccept-reply"$ \\
-    It means that $p$ is a follower. As $c \in cmdLog[p]$, necessarily $c \in D'_p$ because $p$ receives a message $msg$ and reply with a message $m$ with $m.deps = msg.deps \cup \{t.inst : t \in cmdLog[p]\}\backslash \{msg.inst\}$.
+    It means that $p$ is a follower. As $c \in cmdLog[p]$, necessarily $c \in D'$ because $p$ receives a message $msg$ and reply with a message $m$ with $m.deps = msg.deps \cup \{t.inst : t \in cmdLog[p]\}\backslash \{msg.inst\}$.
 
     \item $m.type = "try-preaccept-reply"$ \\
+    If $c \in D'$, the set proposed by the leader of the recovery, then the result is verified. Otherwise, if $c \notin D'$ then $c' \in p.deps[c]$ and as $seen(D,c,p,b)$, by property 8 we conclude that $p.deps[c] \subseteq D$ hence $c' \in D$.
 \end{case}
 
 \end{proof}
